@@ -109,7 +109,10 @@ export default function Dashboard() {
   const fetchData = useCallback(async () => {
     try {
       setError(null);
-      const res = await fetch('/api/work-orders');
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 30000);
+      const res = await fetch('/api/work-orders', { signal: controller.signal });
+      clearTimeout(timeout);
       if (!res.ok) {
         const body = await res.json().catch(() => null);
         throw new Error(body?.error || `Request failed (${res.status})`);
@@ -117,7 +120,11 @@ export default function Dashboard() {
       const json: DashboardData = await res.json();
       setData(json);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to load data');
+      if (err instanceof DOMException && err.name === 'AbortError') {
+        setError('Request timed out. Please try again.');
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to load data');
+      }
     } finally {
       setLoading(false);
     }

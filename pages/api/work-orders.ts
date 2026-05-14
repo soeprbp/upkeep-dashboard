@@ -2,6 +2,8 @@ import type { NextApiRequest, NextApiResponse } from 'next';
 
 const UPKEEP_BASE_URL = 'https://api.onupkeep.com/api/v2';
 const PAGE_SIZE = 200;
+const INITIAL_LOOKBACK_DAYS = 90;
+const FETCH_TIMEOUT_MS = 8000;
 
 interface WorkOrder {
   id: string;
@@ -51,13 +53,28 @@ interface DashboardData {
   generatedAt: string;
 }
 
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    return response;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
 async function getSessionToken(email: string, password: string): Promise<string> {
   const body = new URLSearchParams({ email, password });
-  const response = await fetch(`${UPKEEP_BASE_URL}/auth`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-    body,
-  });
+  const response = await fetchWithTimeout(
+    `${UPKEEP_BASE_URL}/auth`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    },
+    FETCH_TIMEOUT_MS
+  );
   const data: AuthResponse = await response.json();
   if (!data.success || !data.result?.sessionToken) {
     throw new Error('Authentication failed');
@@ -69,16 +86,31 @@ async function getAllWorkOrders(token: string): Promise<WorkOrder[]> {
   const all: WorkOrder[] = [];
   let offset = 0;
 
+  const lookbackMs = Date.now() - INITIAL_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
+
   while (true) {
     const url = `${UPKEEP_BASE_URL}/work-orders?limit=${PAGE_SIZE}&offset=${offset}`;
-    const response = await fetch(url, {
-      headers: { 'Session-Token': token },
-    });
+    const response = await fetchWithTimeout(
+      url,
+      { headers: { 'Session-Token': token } },
+      FETCH_TIMEOUT_MS
+    );
     const data: WorkOrdersResponse = await response.json();
 
     if (!data.success || !data.results || data.results.length === 0) break;
 
-    all.push(...data.results);
+    const filtered = data.results.filter((wo) => {
+      if (!wo.updatedAt) return true;
+      let ts: number;
+      if (typeof wo.updatedAt === 'number') {
+        ts = wo.updatedAt > 1e12 ? wo.updatedAt : wo.updatedAt * 1000;
+      } else {
+        ts = new Date(wo.updatedAt).getTime();
+      }
+      return !isNaN(ts) && ts >= lookbackMs;
+    });
+
+    all.push(...filtered);
 
     if (data.results.length < PAGE_SIZE) break;
     offset += PAGE_SIZE;
@@ -184,6 +216,8 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse<DashboardData | { error: string }>
 ) {
+  res.setHeader('Cache-Control', 'public, s-maxage=300, stale-while-revalidate=60');
+
   try {
     const email = process.env.UPKEEP_EMAIL;
     const password = process.env.UPKEEP_PASSWORD;
