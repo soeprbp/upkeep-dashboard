@@ -1,3 +1,5 @@
+import Head from 'next/head';
+
 interface StatusGroup {
   name: string;
   count: number;
@@ -175,6 +177,9 @@ export default function Dashboard({ data, error }: { data: DashboardData | null;
 
   return (
     <div className="container">
+      <Head>
+        <meta httpEquiv="refresh" content="900" />
+      </Head>
       <div className="header">
         <div className="header-left">
           <h1>UpKeep Work Order Dashboard</h1>
