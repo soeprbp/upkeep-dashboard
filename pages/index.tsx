@@ -595,10 +595,10 @@ function computeAging(orders: WorkOrder[]): AgingSummary {
 }
 
 const PRIORITY_NAMES: Record<string, string> = {
-  '0': 'Low',
-  '1': 'Medium',
-  '2': 'High',
-  '3': 'Critical',
+  '0': 'NONE',
+  '1': 'LOW',
+  '2': 'MEDIUM',
+  '3': 'HIGH',
 };
 
 function computePriority(orders: WorkOrder[]): PriorityItem[] {
