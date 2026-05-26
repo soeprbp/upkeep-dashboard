@@ -427,6 +427,7 @@ interface WorkOrder {
   requestDate?: string;
   date?: string;
   dueDate?: string;
+  dateCompleted?: string;
   priority?: string | number;
   priorityName?: string;
   workOrderPriority?: string;

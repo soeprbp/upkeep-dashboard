@@ -24,7 +24,7 @@ interface WorkOrder {
   assignedToUser?: string;
   createdAt?: string | number;
   updatedAt?: string | number;
-  date?: string;
+  dateCompleted?: string;
 }
 
 interface TeamsListResponse {
@@ -161,7 +161,7 @@ export async function getStaticProps(): Promise<{ props: { data: TvData | null; 
       if (created && created >= mtdStart) mtdCreated++;
 
       if (status === 'complete' || status === 'closed') {
-        const completed = parseTimestamp(wo.updatedAt);
+        const completed = parseTimestamp(wo.dateCompleted);
         if (completed && completed >= mtdStart) mtdCompleted++;
       }
     }
