@@ -25,6 +25,12 @@ jobs:
         with:
           node-version: 20
           cache: npm
+      - name: Restore work orders cache
+        id: cache-orders
+        uses: actions/cache@v4
+        with:
+          path: work-orders-cache.json
+          key: work-orders-cache-v1
       - run: npm ci
       - run: npm run build
         env:

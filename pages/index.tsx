@@ -417,6 +417,42 @@ const INITIAL_LOOKBACK_DAYS = 30;
 const FETCH_TIMEOUT_MS = 15000;
 const MAX_PAGES = 5;
 const TEAM_NAME = 'Weekly Team Performance Report Group';
+const CACHE_FILE = 'work-orders-cache.json';
+const CACHE_TTL_MS = 14 * 60 * 1000;
+
+interface CacheEntry {
+  cachedAt: string;
+  orders: WorkOrder[];
+}
+
+function readCache(): { orders: WorkOrder[]; age: number } | null {
+  try {
+    const fs = require('fs');
+    const fp = require('path').join(process.cwd(), CACHE_FILE);
+    if (!fs.existsSync(fp)) return null;
+    const entry: CacheEntry = JSON.parse(fs.readFileSync(fp, 'utf-8'));
+    const age = Date.now() - new Date(entry.cachedAt).getTime();
+    if (age < CACHE_TTL_MS) return { orders: entry.orders, age };
+    return null;
+  } catch { return null; }
+}
+
+function writeCache(orders: WorkOrder[]): void {
+  try {
+    const fs = require('fs');
+    const fp = require('path').join(process.cwd(), CACHE_FILE);
+    fs.writeFileSync(fp, JSON.stringify({ cachedAt: new Date().toISOString(), orders }));
+  } catch { /* ignore */ }
+}
+
+function readStaleCache(): WorkOrder[] | null {
+  try {
+    const fs = require('fs');
+    const fp = require('path').join(process.cwd(), CACHE_FILE);
+    if (!fs.existsSync(fp)) return null;
+    return JSON.parse(fs.readFileSync(fp, 'utf-8')).orders;
+  } catch { return null; }
+}
 
 interface WorkOrder {
   id: string;
@@ -692,22 +728,29 @@ function computeTechPerformance(orders: WorkOrder[], nameById: Record<string, st
 }
 
 export async function getStaticProps() {
-  try {
-    const email = process.env.UPKEEP_EMAIL;
-    const password = process.env.UPKEEP_PASSWORD;
+  const email = process.env.UPKEEP_EMAIL;
+  const password = process.env.UPKEEP_PASSWORD;
 
-    if (!email || !password) {
-      return {
-        props: {
-          data: null,
-          error: 'UpKeep credentials not configured',
-        },
-      };
+  if (!email || !password) {
+    return { props: { data: null, error: 'UpKeep credentials not configured' } };
+  }
+
+  try {
+    const token = await getSessionToken(email, password);
+
+    const cached = readCache();
+    let allOrders: WorkOrder[];
+
+    if (cached) {
+      console.log(`[build] Cache HIT (${Math.round(cached.age / 1000)}s old)`);
+      allOrders = cached.orders;
+    } else {
+      console.log('[build] Cache MISS — fetching from UpKeep API');
+      allOrders = await getAllWorkOrders(token);
+      writeCache(allOrders);
     }
 
-    const token = await getSessionToken(email, password);
     const { ids: teamUserIds, names: teamMemberNames, nameById } = await getTeamUserIds(token);
-    const allOrders = await getAllWorkOrders(token);
     const orders = allOrders.filter((wo) => wo.assignedToUser && teamUserIds.has(wo.assignedToUser));
 
     console.log(`[build] Raw: ${allOrders.length} | Team filter: ${orders.length} | Team members: ${teamUserIds.size}`);
@@ -722,18 +765,37 @@ export async function getStaticProps() {
       teamMembers: teamMemberNames,
     };
 
-    return {
-      props: { data, error: null },
-    };
+    return { props: { data, error: null } };
   } catch (err: unknown) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       return {
-        props: { data: null, error: 'UpKeep API request timed out. The API may be slow or unreachable from the build server.' },
+        props: { data: null, error: 'UpKeep API request timed out.' },
       };
     }
+    const staleOrders = readStaleCache();
+    if (staleOrders && staleOrders.length > 0) {
+      console.log('[build] API failed — falling back to stale cache');
+      try {
+        const token = await getSessionToken(email, password);
+        const { ids: teamUserIds, names: teamMemberNames, nameById } = await getTeamUserIds(token);
+        const orders = staleOrders.filter((wo) => wo.assignedToUser && teamUserIds.has(wo.assignedToUser));
+        return {
+          props: {
+            data: {
+              summary: computeSummary(orders),
+              agingSummary: computeAging(orders),
+              prioritySummary: computePriority(orders),
+              techPerformance: computeTechPerformance(orders, nameById),
+              generatedAt: new Date().toISOString(),
+              teamName: TEAM_NAME,
+              teamMembers: teamMemberNames,
+            },
+            error: null,
+          },
+        };
+      } catch { /* fall through */ }
+    }
     const message = err instanceof Error ? err.message : 'Unknown error';
-    return {
-      props: { data: null, error: message },
-    };
+    return { props: { data: null, error: message } };
   }
 }

@@ -19,6 +19,42 @@ const INITIAL_LOOKBACK_DAYS = 60;
 const FETCH_TIMEOUT_MS = 20000;
 const MAX_PAGES = 5;
 const TEAM_NAME = 'Weekly Team Performance Report Group';
+const CACHE_FILE = 'work-orders-cache.json';
+const CACHE_TTL_MS = 14 * 60 * 1000;
+
+interface CacheEntry {
+  cachedAt: string;
+  orders: WorkOrder[];
+}
+
+function readCache(): { orders: WorkOrder[]; age: number } | null {
+  try {
+    const fs = require('fs');
+    const fp = require('path').join(process.cwd(), CACHE_FILE);
+    if (!fs.existsSync(fp)) return null;
+    const entry: CacheEntry = JSON.parse(fs.readFileSync(fp, 'utf-8'));
+    const age = Date.now() - new Date(entry.cachedAt).getTime();
+    if (age < CACHE_TTL_MS) return { orders: entry.orders, age };
+    return null;
+  } catch { return null; }
+}
+
+function writeCache(orders: WorkOrder[]): void {
+  try {
+    const fs = require('fs');
+    const fp = require('path').join(process.cwd(), CACHE_FILE);
+    fs.writeFileSync(fp, JSON.stringify({ cachedAt: new Date().toISOString(), orders }));
+  } catch { /* ignore */ }
+}
+
+function readStaleCache(): WorkOrder[] | null {
+  try {
+    const fs = require('fs');
+    const fp = require('path').join(process.cwd(), CACHE_FILE);
+    if (!fs.existsSync(fp)) return null;
+    return JSON.parse(fs.readFileSync(fp, 'utf-8')).orders;
+  } catch { return null; }
+}
 
 interface WorkOrder {
   id: string;
@@ -142,16 +178,28 @@ function parseTimestamp(val: string | number | undefined): number | null {
 }
 
 export async function getStaticProps(): Promise<{ props: { data: TvData | null; error: string | null } }> {
+  const email = process.env.UPKEEP_EMAIL;
+  const password = process.env.UPKEEP_PASSWORD;
+  if (!email || !password) {
+    return { props: { data: null, error: 'UpKeep credentials not configured' } };
+  }
+
   try {
-    const email = process.env.UPKEEP_EMAIL;
-    const password = process.env.UPKEEP_PASSWORD;
-    if (!email || !password) {
-      return { props: { data: null, error: 'UpKeep credentials not configured' } };
+    const token = await getSessionToken(email, password);
+
+    const cached = readCache();
+    let allOrders: WorkOrder[];
+
+    if (cached) {
+      console.log(`[tv] Cache HIT (${Math.round(cached.age / 1000)}s old)`);
+      allOrders = cached.orders;
+    } else {
+      console.log('[tv] Cache MISS — fetching from UpKeep API');
+      allOrders = await getAllWorkOrders(token);
+      writeCache(allOrders);
     }
 
-    const token = await getSessionToken(email, password);
     const { ids: teamUserIds, nameById } = await getTeamUserIds(token);
-    const allOrders = await getAllWorkOrders(token);
     const teamOrders = allOrders.filter((wo) => wo.assignedToUser && teamUserIds.has(wo.assignedToUser));
 
     const now = new Date();
@@ -203,6 +251,47 @@ export async function getStaticProps(): Promise<{ props: { data: TvData | null; 
   } catch (err: unknown) {
     if (err instanceof DOMException && err.name === 'AbortError') {
       return { props: { data: null, error: 'UpKeep API request timed out.' } };
+    }
+    const staleOrders = readStaleCache();
+    if (staleOrders && staleOrders.length > 0) {
+      console.log('[tv] API failed — falling back to stale cache');
+      try {
+        const token = await getSessionToken(email, password);
+        const { ids: teamUserIds, nameById } = await getTeamUserIds(token);
+        const teamOrders = staleOrders.filter((wo) => wo.assignedToUser && teamUserIds.has(wo.assignedToUser));
+        const now = new Date();
+        const mtdStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime();
+        let openOrders = 0, mtdCreated = 0, mtdCompleted = 0;
+        for (const wo of teamOrders) {
+          const status = normalizeStatus(wo.status);
+          if (['open', 'in-progress', 'on-hold'].includes(status)) openOrders++;
+          const created = parseTimestamp(wo.createdAt);
+          if (created && created >= mtdStart) mtdCreated++;
+          if (status === 'complete' || status === 'closed') {
+            const completed = parseTimestamp(wo.dateCompleted);
+            if (completed && completed >= mtdStart) mtdCompleted++;
+          }
+        }
+        const unassignedList = staleOrders.filter((wo) => !wo.assignedToUser);
+        const pendingList = staleOrders.filter((wo) => {
+          const status = normalizeStatus(wo.status);
+          return !wo.assignedToUser && !['complete', 'closed'].includes(status);
+        });
+        const teamMemberNames = Object.values(nameById).sort();
+        return {
+          props: {
+            data: {
+              openOrders, unassignedOrders: unassignedList.length,
+              requestsUnassigned: pendingList.length, mtdCreated, mtdCompleted,
+              teamMembers: teamMemberNames, teamName: TEAM_NAME,
+              generatedAt: now.toISOString(),
+              unassignedSubjects: unassignedList.map(safeTitle).slice(0, 20),
+              pendingRequestSubjects: pendingList.map(safeTitle).slice(0, 20),
+            },
+            error: null,
+          },
+        };
+      } catch { /* fall through */ }
     }
     const message = err instanceof Error ? err.message : 'Unknown error';
     return { props: { data: null, error: message } };
