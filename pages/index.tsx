@@ -22,6 +22,7 @@ interface DashboardData {
   agingSummary: AgingSummary;
   prioritySummary: PriorityItem[];
   generatedAt: string;
+  teamName: string;
 }
 
 const CHART_COLORS: Record<string, string> = {
@@ -114,7 +115,7 @@ export default function Dashboard({ data, error }: { data: DashboardData | null;
 
   if (!data) return null;
 
-  const { summary, agingSummary, prioritySummary, generatedAt } = data;
+  const { summary, agingSummary, prioritySummary, generatedAt, teamName } = data;
 
   const openCount = getCount(summary, 'Open');
   const inProgressCount = getCount(summary, 'In Progress');
@@ -183,6 +184,7 @@ export default function Dashboard({ data, error }: { data: DashboardData | null;
       <div className="header">
         <div className="header-left">
           <h1>UpKeep Work Order Dashboard</h1>
+          <p className="team-badge">{teamName}</p>
           <p>Status overview, aging, and priority mix — covering the last 30 days.</p>
         </div>
         <div className="header-right">
@@ -347,10 +349,12 @@ const PAGE_SIZE = 200;
 const INITIAL_LOOKBACK_DAYS = 50;
 const FETCH_TIMEOUT_MS = 15000;
 const MAX_PAGES = 5;
+const TEAM_NAME = 'Weekly Team Performance Report Group';
 
 interface WorkOrder {
   id: string;
   status: string;
+  assignedToUser?: string;
   createdAt?: string | number;
   updatedAt?: string | number;
   requestDate?: string;
@@ -360,6 +364,16 @@ interface WorkOrder {
   priorityName?: string;
   workOrderPriority?: string;
   priorityLabel?: string;
+}
+
+interface TeamsListResponse {
+  success: boolean;
+  results?: Array<{ id: string; name: string }>;
+}
+
+interface TeamUsersResponse {
+  success: boolean;
+  results?: Array<{ id: string }>;
 }
 
 interface AuthResponse {
@@ -439,6 +453,31 @@ async function getAllWorkOrders(token: string): Promise<WorkOrder[]> {
   }
 
   return all;
+}
+
+async function getTeamUserIds(token: string): Promise<Set<string>> {
+  const listResponse = await fetchWithTimeout(
+    `${UPKEEP_BASE_URL}/teams?name=${encodeURIComponent(TEAM_NAME)}`,
+    { headers: { 'Session-Token': token } },
+    FETCH_TIMEOUT_MS
+  );
+  const listData: TeamsListResponse = await listResponse.json();
+  if (!listData.success || !listData.results || listData.results.length === 0) {
+    throw new Error(`Team "${TEAM_NAME}" not found`);
+  }
+
+  const teamId = listData.results[0].id;
+  const usersResponse = await fetchWithTimeout(
+    `${UPKEEP_BASE_URL}/teams/${teamId}/users`,
+    { headers: { 'Session-Token': token } },
+    FETCH_TIMEOUT_MS
+  );
+  const usersData: TeamUsersResponse = await usersResponse.json();
+  if (!usersData.success || !usersData.results) {
+    throw new Error(`Failed to fetch users for team "${TEAM_NAME}"`);
+  }
+
+  return new Set(usersData.results.map((u) => u.id));
 }
 
 function normalizeStatus(status: string): string {
@@ -549,13 +588,16 @@ export async function getStaticProps() {
     }
 
     const token = await getSessionToken(email, password);
-    const orders = await getAllWorkOrders(token);
+    const teamUserIds = await getTeamUserIds(token);
+    const allOrders = await getAllWorkOrders(token);
+    const orders = allOrders.filter((wo) => wo.assignedToUser && teamUserIds.has(wo.assignedToUser));
 
     const data: DashboardData = {
       summary: computeSummary(orders),
       agingSummary: computeAging(orders),
       prioritySummary: computePriority(orders),
       generatedAt: new Date().toISOString(),
+      teamName: TEAM_NAME,
     };
 
     return {
