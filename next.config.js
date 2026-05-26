@@ -3,6 +3,7 @@ const nextConfig = {
   output: 'export',
   images: { unoptimized: true },
   trailingSlash: true,
+  staticPageGenerationTimeout: 180,
 }
 
 if (process.env.GITHUB_ACTIONS === 'true') {
