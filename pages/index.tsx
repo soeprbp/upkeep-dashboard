@@ -210,7 +210,7 @@ export default function Dashboard({ data, error }: { data: DashboardData | null;
         </button>
         <div className="header-left">
           <h1>UpKeep Work Order Dashboard</h1>
-          <p className="header-location">Welch Packaging &bull; Elkhat</p>
+          <p className="header-location">Welch Packaging &bull; Elkhart</p>
           <p className="team-badge">{teamName}</p>
           <p>Status overview, aging, and priority mix — covering the last 30 days.</p>
         </div>

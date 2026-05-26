@@ -229,7 +229,7 @@ export default function TvPage({ data, error }: { data: TvData | null; error: st
       <div className="tv-page">
         <div className="tv-header">
           <div className="tv-title">
-            <span className="tv-title-main">Welch Packaging · Elkhat</span>
+            <span className="tv-title-main">Welch Packaging · Elkhart</span>
             <span className="tv-title-sub">{data.teamName}</span>
           </div>
           <div className="tv-timestamp">{generatedLocal}</div>
