@@ -42,6 +42,21 @@
   background: #1e293b;
 }
 
+.dark .status-table tbody td {
+  border-bottom-color: #334155;
+}
+
+.dark .priority-count,
+.dark .bar-value,
+.dark .kpi-number,
+.dark .status-count {
+  color: var(--ink);
+}
+
+.dark .donut-center-text {
+  fill: var(--ink) !important;
+}
+
 * { box-sizing: border-box; }
 
 body {
