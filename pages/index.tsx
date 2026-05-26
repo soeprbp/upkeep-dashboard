@@ -346,7 +346,7 @@ export default function Dashboard({ data, error }: { data: DashboardData | null;
 
 const UPKEEP_BASE_URL = 'https://api.onupkeep.com/api/v2';
 const PAGE_SIZE = 200;
-const INITIAL_LOOKBACK_DAYS = 50;
+const INITIAL_LOOKBACK_DAYS = 30;
 const FETCH_TIMEOUT_MS = 15000;
 const MAX_PAGES = 5;
 const TEAM_NAME = 'Weekly Team Performance Report Group';
@@ -591,6 +591,8 @@ export async function getStaticProps() {
     const teamUserIds = await getTeamUserIds(token);
     const allOrders = await getAllWorkOrders(token);
     const orders = allOrders.filter((wo) => wo.assignedToUser && teamUserIds.has(wo.assignedToUser));
+
+    console.log(`[build] Raw: ${allOrders.length} | Team filter: ${orders.length} | Team members: ${teamUserIds.size}`);
 
     const data: DashboardData = {
       summary: computeSummary(orders),
