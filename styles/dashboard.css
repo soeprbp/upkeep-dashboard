@@ -355,6 +355,77 @@ body {
   border-radius: 999px;
 }
 
+.tech-bar-chart {
+  display: grid;
+  gap: 16px;
+}
+
+.tech-bar-row {
+  display: grid;
+  gap: 3px;
+}
+
+.tech-bar-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+.tech-bar-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tech-bar-rate {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--text);
+  flex-shrink: 0;
+}
+
+.tech-bar-track {
+  display: flex;
+  height: 18px;
+  width: 100%;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #edf2f7;
+}
+
+.dark .tech-bar-track {
+  background: #1e293b;
+}
+
+.tech-bar-ontime {
+  height: 100%;
+  background: linear-gradient(90deg, #059669, #10b981);
+  transition: width 0.3s;
+}
+
+.tech-bar-nodata {
+  height: 100%;
+  background: linear-gradient(90deg, #94a3b8, #cbd5e1);
+  transition: width 0.3s;
+}
+
+.dark .tech-bar-ontime {
+  background: linear-gradient(90deg, #059669, #34d399);
+}
+
+.dark .tech-bar-nodata {
+  background: linear-gradient(90deg, #475569, #64748b);
+}
+
+.tech-bar-counts {
+  font-size: 11px;
+  color: var(--muted);
+}
+
 .fill-open { background: var(--blue); }
 .fill-progress { background: var(--purple); }
 .fill-hold { background: var(--amber); }

@@ -18,6 +18,14 @@ interface PriorityItem {
   count: number;
 }
 
+interface TechPerformanceItem {
+  name: string;
+  ontime: number;
+  noData: number;
+  total: number;
+  rate: number;
+}
+
 interface DashboardData {
   summary: StatusGroup[];
   agingSummary: AgingSummary;
@@ -25,6 +33,7 @@ interface DashboardData {
   generatedAt: string;
   teamName: string;
   teamMembers: string[];
+  techPerformance: TechPerformanceItem[];
 }
 
 const CHART_COLORS: Record<string, string> = {
@@ -357,6 +366,34 @@ export default function Dashboard({ data, error }: { data: DashboardData | null;
         </div>
       </div>
 
+      <div className="panel" style={{ marginTop: 24 }}>
+        <div className="panel-header">
+          <h2 className="panel-title">Technician Performance</h2>
+          <p className="panel-subtitle">On-time completion rate by technician (sorted by rate).</p>
+        </div>
+        <div className="panel-body">
+          <div className="tech-bar-chart">
+            {data.techPerformance.map((t) => {
+              const ontimePct = t.total > 0 ? (t.ontime / t.total) * 100 : 0;
+              const noDataPct = t.total > 0 ? (t.noData / t.total) * 100 : 0;
+              return (
+                <div key={t.name} className="tech-bar-row">
+                  <div className="tech-bar-top">
+                    <span className="tech-bar-name">{t.name}</span>
+                    <span className="tech-bar-rate">{(t.rate * 100).toFixed(0)}%</span>
+                  </div>
+                  <div className="tech-bar-track">
+                    <div className="tech-bar-ontime" style={{ width: `${ontimePct}%` }} />
+                    <div className="tech-bar-nodata" style={{ width: `${noDataPct}%` }} />
+                  </div>
+                  <div className="tech-bar-counts">{t.ontime} on time &middot; {t.noData} no data &middot; {t.total} total</div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
       <div className="team-strip-wrap">
         <div className="team-strip">
           <div className="team-strip-track">
@@ -485,7 +522,7 @@ async function getAllWorkOrders(token: string): Promise<WorkOrder[]> {
   return all;
 }
 
-async function getTeamUserIds(token: string): Promise<{ ids: Set<string>; names: string[] }> {
+async function getTeamUserIds(token: string): Promise<{ ids: Set<string>; names: string[]; nameById: Record<string, string> }> {
   const listResponse = await fetchWithTimeout(
     `${UPKEEP_BASE_URL}/teams?name=${encodeURIComponent(TEAM_NAME)}`,
     { headers: { 'Session-Token': token } },
@@ -507,9 +544,18 @@ async function getTeamUserIds(token: string): Promise<{ ids: Set<string>; names:
     throw new Error(`Failed to fetch users for team "${TEAM_NAME}"`);
   }
 
-  const ids = new Set(usersData.results.map((u) => u.id));
-  const names = usersData.results.map((u) => `${u.firstName || ''} ${u.lastName || ''}`.trim()).filter(Boolean).sort();
-  return { ids, names };
+  const nameById: Record<string, string> = {};
+  const names: string[] = [];
+  for (const u of usersData.results) {
+    const fullName = `${u.firstName || ''} ${u.lastName || ''}`.trim();
+    if (fullName) {
+      nameById[u.id] = fullName;
+      names.push(fullName);
+    }
+  }
+  names.sort();
+  const ids = new Set(Object.keys(nameById));
+  return { ids, names, nameById };
 }
 
 function normalizeStatus(status: string): string {
@@ -617,6 +663,33 @@ function computePriority(orders: WorkOrder[]): PriorityItem[] {
     .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
 }
 
+function computeTechPerformance(orders: WorkOrder[], nameById: Record<string, string>): TechPerformanceItem[] {
+  const byUser: Record<string, { ontime: number; noData: number; total: number }> = {};
+
+  for (const wo of orders) {
+    const uid = wo.assignedToUser;
+    if (!uid || !nameById[uid]) continue;
+    if (!byUser[uid]) byUser[uid] = { ontime: 0, noData: 0, total: 0 };
+    byUser[uid].total++;
+    const status = normalizeStatus(wo.status);
+    if (status === 'complete' || status === 'closed') {
+      byUser[uid].ontime++;
+    } else {
+      byUser[uid].noData++;
+    }
+  }
+
+  return Object.entries(byUser)
+    .map(([uid, v]) => ({
+      name: nameById[uid],
+      ontime: v.ontime,
+      noData: v.noData,
+      total: v.total,
+      rate: v.total > 0 ? v.ontime / v.total : 0,
+    }))
+    .sort((a, b) => b.rate - a.rate || b.total - a.total);
+}
+
 export async function getStaticProps() {
   try {
     const email = process.env.UPKEEP_EMAIL;
@@ -632,7 +705,7 @@ export async function getStaticProps() {
     }
 
     const token = await getSessionToken(email, password);
-    const { ids: teamUserIds, names: teamMemberNames } = await getTeamUserIds(token);
+    const { ids: teamUserIds, names: teamMemberNames, nameById } = await getTeamUserIds(token);
     const allOrders = await getAllWorkOrders(token);
     const orders = allOrders.filter((wo) => wo.assignedToUser && teamUserIds.has(wo.assignedToUser));
 
@@ -642,6 +715,7 @@ export async function getStaticProps() {
       summary: computeSummary(orders),
       agingSummary: computeAging(orders),
       prioritySummary: computePriority(orders),
+      techPerformance: computeTechPerformance(orders, nameById),
       generatedAt: new Date().toISOString(),
       teamName: TEAM_NAME,
       teamMembers: teamMemberNames,
