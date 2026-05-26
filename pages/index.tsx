@@ -126,6 +126,17 @@ export default function Dashboard({ data, error }: { data: DashboardData | null;
     localStorage.setItem('theme', dark ? 'dark' : 'light');
   }, [dark]);
 
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState === 'visible' && data?.generatedAt) {
+        const age = Date.now() - new Date(data.generatedAt).getTime();
+        if (age > 16 * 60 * 1000) window.location.reload();
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [data?.generatedAt]);
+
   if (error) {
     return (
       <div className="container">

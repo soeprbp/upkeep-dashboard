@@ -1,4 +1,5 @@
 import Head from 'next/head';
+import { useEffect } from 'react';
 
 interface TvData {
   openOrders: number;
@@ -299,6 +300,17 @@ export async function getStaticProps(): Promise<{ props: { data: TvData | null; 
 }
 
 export default function TvPage({ data, error }: { data: TvData | null; error: string | null }) {
+  useEffect(() => {
+    function onVisible() {
+      if (document.visibilityState === 'visible' && data?.generatedAt) {
+        const age = Date.now() - new Date(data.generatedAt).getTime();
+        if (age > 16 * 60 * 1000) window.location.reload();
+      }
+    }
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [data?.generatedAt]);
+
   if (error || !data) {
     return (
       <div className="tv-page">
