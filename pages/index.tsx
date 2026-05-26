@@ -339,8 +339,9 @@ export default function Dashboard({ data, error }: { data: DashboardData | null;
 
 const UPKEEP_BASE_URL = 'https://api.onupkeep.com/api/v2';
 const PAGE_SIZE = 200;
-const INITIAL_LOOKBACK_DAYS = 14;
-const FETCH_TIMEOUT_MS = 30000;
+const INITIAL_LOOKBACK_DAYS = 50;
+const FETCH_TIMEOUT_MS = 15000;
+const MAX_PAGES = 5;
 
 interface WorkOrder {
   id: string;
@@ -401,7 +402,10 @@ async function getAllWorkOrders(token: string): Promise<WorkOrder[]> {
 
   const lookbackMs = Date.now() - INITIAL_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
 
-  while (true) {
+  let pageCount = 0;
+
+  while (pageCount < MAX_PAGES) {
+    pageCount++;
     const url = `${UPKEEP_BASE_URL}/work-orders?limit=${PAGE_SIZE}&offset=${offset}`;
     const response = await fetchWithTimeout(
       url,
