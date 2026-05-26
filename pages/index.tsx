@@ -340,7 +340,7 @@ export default function Dashboard({ data, error }: { data: DashboardData | null;
 const UPKEEP_BASE_URL = 'https://api.onupkeep.com/api/v2';
 const PAGE_SIZE = 200;
 const INITIAL_LOOKBACK_DAYS = 14;
-const FETCH_TIMEOUT_MS = 6000;
+const FETCH_TIMEOUT_MS = 30000;
 
 interface WorkOrder {
   id: string;
@@ -553,6 +553,11 @@ export async function getStaticProps() {
       props: { data, error: null },
     };
   } catch (err: unknown) {
+    if (err instanceof DOMException && err.name === 'AbortError') {
+      return {
+        props: { data: null, error: 'UpKeep API request timed out. The API may be slow or unreachable from the build server.' },
+      };
+    }
     const message = err instanceof Error ? err.message : 'Unknown error';
     return {
       props: { data: null, error: message },
