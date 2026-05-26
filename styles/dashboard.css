@@ -11,6 +11,35 @@
   --green: #059669;
   --slate: #64748b;
   --ink: #111827;
+  --toggle-bg: #e5e7eb;
+  --toggle-color: #4b5563;
+}
+
+.dark {
+  --bg: #0f172a;
+  --panel: #1e293b;
+  --text: #e2e8f0;
+  --muted: #94a3b8;
+  --border: #334155;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+  --ink: #f1f5f9;
+  --toggle-bg: #334155;
+  --toggle-color: #facc15;
+}
+
+.dark .team-badge {
+  background: #1e3a5f;
+  color: #93c5fd;
+}
+
+.dark .team-strip-name {
+  background: #334155;
+  color: #cbd5e1;
+}
+
+.dark .bar-track,
+.dark .priority-bar-track {
+  background: #1e293b;
 }
 
 * { box-sizing: border-box; }
@@ -61,6 +90,13 @@ body {
   margin-bottom: 8px;
 }
 
+.header-location {
+  font-size: 15px !important;
+  font-weight: 600;
+  color: var(--text) !important;
+  margin-bottom: 4px !important;
+}
+
 .header-right {
   background: var(--panel);
   border: 1px solid var(--border);
@@ -84,6 +120,26 @@ body {
   font-weight: 600;
   color: var(--text);
   margin-bottom: 10px;
+}
+
+.theme-toggle {
+  position: fixed;
+  top: 24px;
+  right: 24px;
+  z-index: 100;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--toggle-bg);
+  color: var(--toggle-color);
+  font-size: 20px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: var(--shadow);
+  transition: background 0.2s, color 0.2s;
 }
 
 .kpi-grid {

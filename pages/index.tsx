@@ -1,4 +1,5 @@
 import Head from 'next/head';
+import { useState, useEffect } from 'react';
 
 interface StatusGroup {
   name: string;
@@ -104,6 +105,17 @@ function getCount(summary: StatusGroup[], name: string): number {
 }
 
 export default function Dashboard({ data, error }: { data: DashboardData | null; error: string | null }) {
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    const stored = localStorage.getItem('theme');
+    if (stored === 'dark') setDark(true);
+  }, []);
+
+  useEffect(() => {
+    localStorage.setItem('theme', dark ? 'dark' : 'light');
+  }, [dark]);
+
   if (error) {
     return (
       <div className="container">
@@ -178,13 +190,17 @@ export default function Dashboard({ data, error }: { data: DashboardData | null;
   ];
 
   return (
-    <div className="container">
+    <div className={`container${dark ? ' dark' : ''}`}>
       <Head>
         <meta httpEquiv="refresh" content="900" />
       </Head>
       <div className="header">
+        <button className="theme-toggle" onClick={() => setDark((d) => !d)}>
+          {dark ? '\u2600' : '\u263E'}
+        </button>
         <div className="header-left">
           <h1>UpKeep Work Order Dashboard</h1>
+          <p className="header-location">Welch Packaging &bull; Elkhat</p>
           <p className="team-badge">{teamName}</p>
           <p>Status overview, aging, and priority mix — covering the last 30 days.</p>
         </div>
