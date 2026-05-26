@@ -73,3 +73,9 @@ npm run dev                           # dev server
 set GITHUB_ACTIONS=true && npm run build  # static build
 npx serve out
 ```
+
+## OpenCode Session
+
+This project was built interactively using OpenCode with agent `auto-fastest`.
+
+**Session ID:** `ses_19bb2edb2ffezUrJWCCdXtGvT2`
