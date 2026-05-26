@@ -296,6 +296,14 @@ body {
   dominant-baseline: middle;
 }
 
+.donut-hole {
+  fill: var(--panel);
+}
+
+.donut-empty {
+  stroke: var(--border);
+}
+
 .donut-center-sub {
   font-size: 12px;
   fill: var(--muted);

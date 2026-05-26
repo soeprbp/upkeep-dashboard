@@ -82,12 +82,12 @@ function DonutChart({ data, total }: { data: StatusGroup[]; total: number }) {
                 strokeDashoffset={s.dashoffset}
               />
             ))}
-            <circle cx={cx} cy={cy} r={56} fill="white" />
+            <circle cx={cx} cy={cy} r={56} className="donut-hole" />
             <text x={cx} y={102} className="donut-center-text">{total}</text>
             <text x={cx} y={124} className="donut-center-sub">Total</text>
           </>
         ) : (
-          <circle cx={cx} cy={cy} r={radius} fill="none" stroke="#e5e7eb" strokeWidth="24" />
+          <circle cx={cx} cy={cy} r={radius} fill="none" className="donut-empty" strokeWidth="24" />
         )}
       </svg>
       <div className="legend">
