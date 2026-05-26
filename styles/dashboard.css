@@ -447,6 +447,11 @@ body {
   background: linear-gradient(90deg, var(--blue), var(--purple));
 }
 
+@keyframes ticker {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+
 .team-strip-wrap {
   margin-top: 24px;
   overflow: hidden;
@@ -454,16 +459,22 @@ body {
   border: 1px solid var(--border);
   border-radius: 22px;
   box-shadow: var(--shadow);
-  padding: 12px 0;
 }
 
 .team-strip {
+  overflow: hidden;
+  padding: 12px 0;
+}
+
+.team-strip-track {
   display: flex;
   gap: 8px;
-  overflow-x: auto;
-  padding: 0 20px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
+  width: max-content;
+  animation: ticker 60s linear infinite;
+}
+
+.team-strip:hover .team-strip-track {
+  animation-play-state: paused;
 }
 
 .team-strip-name {

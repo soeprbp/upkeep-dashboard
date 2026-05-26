@@ -358,9 +358,14 @@ export default function Dashboard({ data, error }: { data: DashboardData | null;
 
       <div className="team-strip-wrap">
         <div className="team-strip">
-          {teamMembers.map((name) => (
-            <span key={name} className="team-strip-name">{name}</span>
-          ))}
+          <div className="team-strip-track">
+            {teamMembers.map((name) => (
+              <span key={name} className="team-strip-name">{name}</span>
+            ))}
+            {teamMembers.map((name) => (
+              <span key={`dup-${name}`} className="team-strip-name">{name}</span>
+            ))}
+          </div>
         </div>
       </div>
       <div className="footer-note">Dashboard auto-refreshes every 15 minutes via GitHub Actions.</div>
