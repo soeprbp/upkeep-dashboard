@@ -777,3 +777,39 @@ body {
 .tv-card-complete .tv-card-number {
   color: var(--tv-green);
 }
+
+.tv-card-with-list {
+  justify-content: flex-start;
+  gap: 0.8vmin;
+}
+
+.tv-card-list {
+  width: 100%;
+  margin-top: 0.5vmin;
+  max-height: 12vmin;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4vmin;
+  scrollbar-width: thin;
+  scrollbar-color: var(--tv-muted) transparent;
+}
+
+.tv-card-list-item {
+  font-size: 1.3vmin;
+  color: var(--tv-text);
+  text-align: left;
+  line-height: 1.4;
+  padding: 0.3vmin 0.6vmin;
+  background: rgba(255, 255, 255, 0.04);
+  border-radius: 0.4vmin;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.tv-card-list-empty {
+  font-size: 1.3vmin;
+  color: var(--tv-muted);
+  font-style: italic;
+}

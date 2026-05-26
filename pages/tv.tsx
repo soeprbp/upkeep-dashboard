@@ -9,6 +9,8 @@ interface TvData {
   teamMembers: string[];
   teamName: string;
   generatedAt: string;
+  unassignedSubjects: string[];
+  pendingRequestSubjects: string[];
 }
 
 const UPKEEP_BASE_URL = 'https://api.onupkeep.com/api/v2';
@@ -20,6 +22,7 @@ const TEAM_NAME = 'Weekly Team Performance Report Group';
 
 interface WorkOrder {
   id: string;
+  title?: string;
   status: string;
   assignedToUser?: string;
   createdAt?: string | number;
@@ -166,12 +169,16 @@ export async function getStaticProps(): Promise<{ props: { data: TvData | null; 
       }
     }
 
-    const unassignedOrders = allOrders.filter((wo) => !wo.assignedToUser).length;
-    const requestsUnassigned = allOrders.filter((wo) => {
+    const unassignedList = allOrders.filter((wo) => !wo.assignedToUser);
+    const unassignedOrders = unassignedList.length;
+    const unassignedSubjects = unassignedList.map((wo) => wo.title || wo.id).slice(0, 20);
+
+    const pendingList = allOrders.filter((wo) => {
       const status = normalizeStatus(wo.status);
       return !wo.assignedToUser && !['complete', 'closed'].includes(status);
-    }).length;
-
+    });
+    const requestsUnassigned = pendingList.length;
+    const pendingRequestSubjects = pendingList.map((wo) => wo.title || wo.id).slice(0, 20);
     const teamMemberNames = Object.values(nameById).sort();
 
     const data: TvData = {
@@ -183,6 +190,8 @@ export async function getStaticProps(): Promise<{ props: { data: TvData | null; 
       teamMembers: teamMemberNames,
       teamName: TEAM_NAME,
       generatedAt: now.toISOString(),
+      unassignedSubjects,
+      pendingRequestSubjects,
     };
 
     return { props: { data, error: null } };
@@ -226,13 +235,31 @@ export default function TvPage({ data, error }: { data: TvData | null; error: st
             <div className="tv-card-number">{data.openOrders}</div>
             <div className="tv-card-label">Open Orders</div>
           </div>
-          <div className="tv-card tv-card-unassigned">
+          <div className="tv-card tv-card-unassigned tv-card-with-list">
             <div className="tv-card-number">{data.unassignedOrders}</div>
             <div className="tv-card-label">Unassigned Orders</div>
+            <div className="tv-card-list">
+              {data.unassignedSubjects.length > 0 ? (
+                data.unassignedSubjects.map((s) => (
+                  <div key={s} className="tv-card-list-item">{s}</div>
+                ))
+              ) : (
+                <div className="tv-card-list-empty">None</div>
+              )}
+            </div>
           </div>
-          <div className="tv-card tv-card-requests">
+          <div className="tv-card tv-card-requests tv-card-with-list">
             <div className="tv-card-number">{data.requestsUnassigned}</div>
             <div className="tv-card-label">Pending Requests</div>
+            <div className="tv-card-list">
+              {data.pendingRequestSubjects.length > 0 ? (
+                data.pendingRequestSubjects.map((s) => (
+                  <div key={s} className="tv-card-list-item">{s}</div>
+                ))
+              ) : (
+                <div className="tv-card-list-empty">None</div>
+              )}
+            </div>
           </div>
           <div className="tv-card tv-card-mtd">
             <div className="tv-card-number">{data.mtdCreated}</div>
