@@ -1,5 +1,3 @@
-import { useEffect, useState, useCallback } from 'react';
-
 interface StatusGroup {
   name: string;
   count: number;
@@ -101,54 +99,13 @@ function getCount(summary: StatusGroup[], name: string): number {
   return summary.find((s) => s.name === name)?.count ?? 0;
 }
 
-export default function Dashboard() {
-  const [data, setData] = useState<DashboardData | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const fetchData = useCallback(async () => {
-    try {
-      setError(null);
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 30000);
-      const res = await fetch('/api/work-orders', { signal: controller.signal });
-      clearTimeout(timeout);
-      if (!res.ok) {
-        const body = await res.json().catch(() => null);
-        throw new Error(body?.error || `Request failed (${res.status})`);
-      }
-      const json: DashboardData = await res.json();
-      setData(json);
-    } catch (err: unknown) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        setError('Request timed out. Please try again.');
-      } else {
-        setError(err instanceof Error ? err.message : 'Failed to load data');
-      }
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    fetchData();
-    const interval = setInterval(fetchData, 5 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [fetchData]);
-
-  if (loading) {
-    return <div className="loading">Loading dashboard...</div>;
-  }
-
+export default function Dashboard({ data, error }: { data: DashboardData | null; error: string | null }) {
   if (error) {
     return (
       <div className="container">
         <div className="error-banner">
           <strong>Error:</strong> {error}
         </div>
-        <button onClick={fetchData} style={{ padding: '8px 16px', cursor: 'pointer' }}>
-          Retry
-        </button>
       </div>
     );
   }
@@ -226,7 +183,7 @@ export default function Dashboard() {
         <div className="header-right">
           <span className="label">Last Updated</span>
           <div className="value">{generatedLocal}</div>
-          <span className="label">Auto-refreshes every 5 minutes</span>
+          <span className="label">Refreshes every 15 minutes</span>
         </div>
       </div>
 
@@ -375,7 +332,230 @@ export default function Dashboard() {
         </div>
       </div>
 
-      <div className="footer-note">Dashboard auto-refreshes every 5 minutes.</div>
+      <div className="footer-note">Dashboard auto-refreshes every 15 minutes via GitHub Actions.</div>
     </div>
   );
+}
+
+const UPKEEP_BASE_URL = 'https://api.onupkeep.com/api/v2';
+const PAGE_SIZE = 200;
+const INITIAL_LOOKBACK_DAYS = 14;
+const FETCH_TIMEOUT_MS = 6000;
+
+interface WorkOrder {
+  id: string;
+  status: string;
+  createdAt?: string | number;
+  updatedAt?: string | number;
+  requestDate?: string;
+  date?: string;
+  dueDate?: string;
+  priority?: string;
+  priorityName?: string;
+  workOrderPriority?: string;
+  priorityLabel?: string;
+}
+
+interface AuthResponse {
+  success: boolean;
+  result?: { sessionToken: string };
+}
+
+interface WorkOrdersResponse {
+  success: boolean;
+  results?: WorkOrder[];
+}
+
+async function fetchWithTimeout(url: string, options: RequestInit, timeoutMs: number): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const response = await fetch(url, { ...options, signal: controller.signal });
+    return response;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function getSessionToken(email: string, password: string): Promise<string> {
+  const body = new URLSearchParams({ email, password });
+  const response = await fetchWithTimeout(
+    `${UPKEEP_BASE_URL}/auth`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body,
+    },
+    FETCH_TIMEOUT_MS
+  );
+  const data: AuthResponse = await response.json();
+  if (!data.success || !data.result?.sessionToken) {
+    throw new Error('Authentication failed');
+  }
+  return data.result.sessionToken;
+}
+
+async function getAllWorkOrders(token: string): Promise<WorkOrder[]> {
+  const all: WorkOrder[] = [];
+  let offset = 0;
+
+  const lookbackMs = Date.now() - INITIAL_LOOKBACK_DAYS * 24 * 60 * 60 * 1000;
+
+  while (true) {
+    const url = `${UPKEEP_BASE_URL}/work-orders?limit=${PAGE_SIZE}&offset=${offset}`;
+    const response = await fetchWithTimeout(
+      url,
+      { headers: { 'Session-Token': token } },
+      FETCH_TIMEOUT_MS
+    );
+    const data: WorkOrdersResponse = await response.json();
+
+    if (!data.success || !data.results || data.results.length === 0) break;
+
+    const filtered = data.results.filter((wo) => {
+      if (!wo.updatedAt) return true;
+      let ts: number;
+      if (typeof wo.updatedAt === 'number') {
+        ts = wo.updatedAt > 1e12 ? wo.updatedAt : wo.updatedAt * 1000;
+      } else {
+        ts = new Date(wo.updatedAt).getTime();
+      }
+      return !isNaN(ts) && ts >= lookbackMs;
+    });
+
+    all.push(...filtered);
+
+    if (data.results.length < PAGE_SIZE) break;
+    offset += PAGE_SIZE;
+  }
+
+  return all;
+}
+
+function normalizeStatus(status: string): string {
+  return (status ?? '').trim().toLowerCase().replace(/[\s_]+/g, '-');
+}
+
+function computeSummary(orders: WorkOrder[]): StatusGroup[] {
+  const config = [
+    { name: 'Open', statusValues: ['Open'] },
+    { name: 'In Progress', statusValues: ['In-Progress', 'In Progress'] },
+    { name: 'On Hold', statusValues: ['On Hold', 'On-Hold'] },
+    { name: 'Complete', statusValues: ['Complete', 'Closed'] },
+  ];
+
+  const normalized = orders.map((wo, i) => ({
+    index: i,
+    raw: wo.status,
+    normalized: normalizeStatus(wo.status),
+  }));
+
+  const matchedIndexes = new Set<number>();
+  const summary: StatusGroup[] = [];
+
+  for (const group of config) {
+    const targets = group.statusValues.map(normalizeStatus);
+    let count = 0;
+    for (const wo of normalized) {
+      if (targets.includes(wo.normalized)) {
+        count++;
+        matchedIndexes.add(wo.index);
+      }
+    }
+    summary.push({ name: group.name, count, statusValues: group.statusValues.join(', ') });
+  }
+
+  const otherStatuses = normalized
+    .filter((wo) => !matchedIndexes.has(wo.index))
+    .map((wo) => wo.raw)
+    .filter(Boolean);
+
+  const otherDistinct = [...new Set(otherStatuses)].sort();
+  summary.push({
+    name: 'Other',
+    count: otherStatuses.length,
+    statusValues: otherDistinct.length ? otherDistinct.join(', ') : 'None',
+  });
+
+  summary.push({ name: 'Total', count: orders.length, statusValues: 'All' });
+
+  return summary;
+}
+
+function computeAging(orders: WorkOrder[]): AgingSummary {
+  const candidateFields = ['createdAt', 'requestDate', 'date', 'dueDate'];
+  let olderThan7 = 0, olderThan14 = 0, olderThan30 = 0;
+  const now = Date.now();
+
+  for (const wo of orders) {
+    const status = normalizeStatus(wo.status);
+    if (!['open', 'in-progress', 'on-hold'].includes(status)) continue;
+
+    for (const field of candidateFields) {
+      const val = (wo as unknown as Record<string, unknown>)[field];
+      if (val) {
+        let ts: number;
+        if (typeof val === 'number') {
+          ts = val > 1e12 ? val : val * 1000;
+        } else {
+          ts = new Date(val as string).getTime();
+        }
+        if (isNaN(ts)) continue;
+
+        const days = (now - ts) / (1000 * 60 * 60 * 24);
+        if (days > 7) olderThan7++;
+        if (days > 14) olderThan14++;
+        if (days > 30) olderThan30++;
+        break;
+      }
+    }
+  }
+
+  return { olderThan7, olderThan14, olderThan30 };
+}
+
+function computePriority(orders: WorkOrder[]): PriorityItem[] {
+  const counts: Record<string, number> = {};
+  for (const wo of orders) {
+    const priority = wo.priority || wo.priorityName || wo.workOrderPriority || wo.priorityLabel || 'Unspecified';
+    counts[priority] = (counts[priority] || 0) + 1;
+  }
+  return Object.entries(counts)
+    .map(([name, count]) => ({ name, count }))
+    .sort((a, b) => b.count - a.count || a.name.localeCompare(b.name));
+}
+
+export async function getStaticProps() {
+  try {
+    const email = process.env.UPKEEP_EMAIL;
+    const password = process.env.UPKEEP_PASSWORD;
+
+    if (!email || !password) {
+      return {
+        props: {
+          data: null,
+          error: 'UpKeep credentials not configured',
+        },
+      };
+    }
+
+    const token = await getSessionToken(email, password);
+    const orders = await getAllWorkOrders(token);
+
+    const data: DashboardData = {
+      summary: computeSummary(orders),
+      agingSummary: computeAging(orders),
+      prioritySummary: computePriority(orders),
+      generatedAt: new Date().toISOString(),
+    };
+
+    return {
+      props: { data, error: null },
+    };
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : 'Unknown error';
+    return {
+      props: { data: null, error: message },
+    };
+  }
 }
