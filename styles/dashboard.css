@@ -391,6 +391,36 @@ body {
   background: linear-gradient(90deg, var(--blue), var(--purple));
 }
 
+.team-strip-wrap {
+  margin-top: 24px;
+  overflow: hidden;
+  background: var(--panel);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  box-shadow: var(--shadow);
+  padding: 12px 0;
+}
+
+.team-strip {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 0 20px;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.team-strip-name {
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--muted);
+  background: #f1f5f9;
+  padding: 6px 16px;
+  border-radius: 999px;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
 .footer-note {
   margin-top: 20px;
   color: var(--muted);

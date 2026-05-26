@@ -23,6 +23,7 @@ interface DashboardData {
   prioritySummary: PriorityItem[];
   generatedAt: string;
   teamName: string;
+  teamMembers: string[];
 }
 
 const CHART_COLORS: Record<string, string> = {
@@ -115,7 +116,7 @@ export default function Dashboard({ data, error }: { data: DashboardData | null;
 
   if (!data) return null;
 
-  const { summary, agingSummary, prioritySummary, generatedAt, teamName } = data;
+  const { summary, agingSummary, prioritySummary, generatedAt, teamName, teamMembers } = data;
 
   const openCount = getCount(summary, 'Open');
   const inProgressCount = getCount(summary, 'In Progress');
@@ -339,6 +340,13 @@ export default function Dashboard({ data, error }: { data: DashboardData | null;
         </div>
       </div>
 
+      <div className="team-strip-wrap">
+        <div className="team-strip">
+          {teamMembers.map((name) => (
+            <span key={name} className="team-strip-name">{name}</span>
+          ))}
+        </div>
+      </div>
       <div className="footer-note">Dashboard auto-refreshes every 15 minutes via GitHub Actions.</div>
     </div>
   );
@@ -373,7 +381,7 @@ interface TeamsListResponse {
 
 interface TeamUsersResponse {
   success: boolean;
-  results?: Array<{ id: string }>;
+  results?: Array<{ id: string; firstName?: string; lastName?: string }>;
 }
 
 interface AuthResponse {
@@ -455,7 +463,7 @@ async function getAllWorkOrders(token: string): Promise<WorkOrder[]> {
   return all;
 }
 
-async function getTeamUserIds(token: string): Promise<Set<string>> {
+async function getTeamUserIds(token: string): Promise<{ ids: Set<string>; names: string[] }> {
   const listResponse = await fetchWithTimeout(
     `${UPKEEP_BASE_URL}/teams?name=${encodeURIComponent(TEAM_NAME)}`,
     { headers: { 'Session-Token': token } },
@@ -477,7 +485,9 @@ async function getTeamUserIds(token: string): Promise<Set<string>> {
     throw new Error(`Failed to fetch users for team "${TEAM_NAME}"`);
   }
 
-  return new Set(usersData.results.map((u) => u.id));
+  const ids = new Set(usersData.results.map((u) => u.id));
+  const names = usersData.results.map((u) => `${u.firstName || ''} ${u.lastName || ''}`.trim()).filter(Boolean).sort();
+  return { ids, names };
 }
 
 function normalizeStatus(status: string): string {
@@ -588,7 +598,7 @@ export async function getStaticProps() {
     }
 
     const token = await getSessionToken(email, password);
-    const teamUserIds = await getTeamUserIds(token);
+    const { ids: teamUserIds, names: teamMemberNames } = await getTeamUserIds(token);
     const allOrders = await getAllWorkOrders(token);
     const orders = allOrders.filter((wo) => wo.assignedToUser && teamUserIds.has(wo.assignedToUser));
 
@@ -600,6 +610,7 @@ export async function getStaticProps() {
       prioritySummary: computePriority(orders),
       generatedAt: new Date().toISOString(),
       teamName: TEAM_NAME,
+      teamMembers: teamMemberNames,
     };
 
     return {
