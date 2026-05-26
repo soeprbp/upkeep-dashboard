@@ -368,7 +368,7 @@ interface WorkOrder {
   requestDate?: string;
   date?: string;
   dueDate?: string;
-  priority?: string;
+  priority?: string | number;
   priorityName?: string;
   workOrderPriority?: string;
   priorityLabel?: string;
@@ -572,11 +572,23 @@ function computeAging(orders: WorkOrder[]): AgingSummary {
   return { olderThan7, olderThan14, olderThan30 };
 }
 
+const PRIORITY_NAMES: Record<string, string> = {
+  '0': 'Low',
+  '1': 'Medium',
+  '2': 'High',
+  '3': 'Critical',
+};
+
 function computePriority(orders: WorkOrder[]): PriorityItem[] {
   const counts: Record<string, number> = {};
   for (const wo of orders) {
-    const priority = wo.priority || wo.priorityName || wo.workOrderPriority || wo.priorityLabel || 'Unspecified';
-    counts[priority] = (counts[priority] || 0) + 1;
+    const raw = wo.priorityName || wo.workOrderPriority || wo.priorityLabel || wo.priority;
+    if (raw === undefined || raw === null) {
+      counts['Unspecified'] = (counts['Unspecified'] || 0) + 1;
+      continue;
+    }
+    const name = PRIORITY_NAMES[String(raw)] || String(raw);
+    counts[name] = (counts[name] || 0) + 1;
   }
   return Object.entries(counts)
     .map(([name, count]) => ({ name, count }))
