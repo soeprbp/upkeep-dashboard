@@ -113,6 +113,7 @@ export default function Dashboard({ data, error }: { data: DashboardData | null;
   }, []);
 
   useEffect(() => {
+    document.documentElement.classList.toggle('dark', dark);
     localStorage.setItem('theme', dark ? 'dark' : 'light');
   }, [dark]);
 
@@ -190,7 +191,7 @@ export default function Dashboard({ data, error }: { data: DashboardData | null;
   ];
 
   return (
-    <div className={`container${dark ? ' dark' : ''}`}>
+    <div className="container">
       <Head>
         <meta httpEquiv="refresh" content="900" />
       </Head>

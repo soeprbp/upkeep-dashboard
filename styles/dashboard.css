@@ -48,7 +48,7 @@ body {
   margin: 0;
   padding: 24px;
   font-family: "Segoe UI", Arial, sans-serif;
-  background: linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
+  background: linear-gradient(180deg, var(--bg) 0%, var(--bg) 100%);
   color: var(--text);
 }
 
