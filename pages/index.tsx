@@ -178,7 +178,7 @@ export default function Dashboard({ data, error }: { data: DashboardData | null;
       <div className="header">
         <div className="header-left">
           <h1>UpKeep Work Order Dashboard</h1>
-          <p>Status overview, aging, and priority mix.</p>
+          <p>Status overview, aging, and priority mix — covering the last 30 days.</p>
         </div>
         <div className="header-right">
           <span className="label">Last Updated</span>
