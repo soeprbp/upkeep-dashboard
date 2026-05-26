@@ -129,6 +129,11 @@ function normalizeStatus(status: string): string {
   return (status ?? '').trim().toLowerCase().replace(/[\s_]+/g, '-');
 }
 
+function safeTitle(wo: WorkOrder): string {
+  if (!wo.title || wo.title.includes('elevated admin permissions')) return wo.id;
+  return wo.title;
+}
+
 function parseTimestamp(val: string | number | undefined): number | null {
   if (!val) return null;
   if (typeof val === 'number') return val > 1e12 ? val : val * 1000;
@@ -171,14 +176,14 @@ export async function getStaticProps(): Promise<{ props: { data: TvData | null; 
 
     const unassignedList = allOrders.filter((wo) => !wo.assignedToUser);
     const unassignedOrders = unassignedList.length;
-    const unassignedSubjects = unassignedList.map((wo) => wo.title || wo.id).slice(0, 20);
+    const unassignedSubjects = unassignedList.map(safeTitle).slice(0, 20);
 
     const pendingList = allOrders.filter((wo) => {
       const status = normalizeStatus(wo.status);
       return !wo.assignedToUser && !['complete', 'closed'].includes(status);
     });
     const requestsUnassigned = pendingList.length;
-    const pendingRequestSubjects = pendingList.map((wo) => wo.title || wo.id).slice(0, 20);
+    const pendingRequestSubjects = pendingList.map(safeTitle).slice(0, 20);
     const teamMemberNames = Object.values(nameById).sort();
 
     const data: TvData = {
